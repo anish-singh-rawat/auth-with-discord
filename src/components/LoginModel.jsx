@@ -1,62 +1,58 @@
 import axios from "axios";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { FaDiscord } from "react-icons/fa";
+import { getUserGuilds } from "./discord";
+import PostToDiscord from "./PostToDiscord";
 const LoginModel = () => {
+  const [accessToken, setAccessToken] = useState(null);
+  const [guilds, setGuilds] = useState([]);
 
   const DISCORD_CLIENT_ID = "1369556722527502460";
   const BASE_URL = "http://localhost:5173";
-  const REDIRECT_URI = `${BASE_URL}/api/auth/discord/redirect`;
-  const DISCORD_OAUTH_URL = `https://discord.com/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=identify+connections+email+gdm.join+guilds.join`;
+  const REDIRECT_URI = `${BASE_URL}`;
+  const DISCORD_OAUTH_URL = `https://discord.com/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=identify+guilds+guilds.join+guilds.members.read`;
   
 
   const handleDiscordLogin = async () => {
     window.location.href = DISCORD_OAUTH_URL;
   };
 
-  useEffect(() => {
-    const fetchData = async ()=>{
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get('code');
-      console.log("code : ",code);
-      if (code) {
-          try {
-              const formData = new URLSearchParams({
-                  client_id: import.meta.env.VITE_client_id,
-                  client_secret: import.meta.env.VITE_client_secret,
-                  grant_type: 'authorization_code',
-                  code: code.toString(),
-                  redirect_uri: "http://localhost:5173/api/auth/discord/redirect"
-              })
-              const output = await axios.post("https://discord.com/api/v10/oauth2/token",
-                  formData, {
-                  headers: {
-                      'Content-Type': 'application/x-www-form-urlencoded'
-                  }
-              });
-              console.log("output : ",output);
-              if (output.data) {
-                  try {
-                      const access = output.data.access_token;
-                      const userinfo = await axios.get("https://discord.com/api/v10/users/@me", {
-                          headers: {
-                              'Authorization': `Bearer ${access}`,
-                          }
-                      });
-                      console.log("userinfo.data : ", userinfo.data);
-                      console.log("output.data", output.data)
-                  } catch (error) {
-                      console.log("err : ", error);
-                  }
-              }
-          } catch (error) {
-              console.log("error: ", error)
+  const fetchData = async () => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    if (code) {
+      console.log("first",code);
+      try {
+        const formData = new URLSearchParams({
+          client_id: import.meta.env.VITE_client_id,
+          client_secret: import.meta.env.VITE_client_secret,
+          grant_type: "authorization_code",
+          code: code.toString(),
+          redirect_uri: "http://localhost:5173",
+        });
+
+        const output = await axios.post("https://discord.com/api/v10/oauth2/token",
+          formData, {
+          headers: {
+              'Content-Type': 'application/x-www-form-urlencoded'
           }
-  
+      });
+        console.log("output  : ",output);
+
+        const access_token = output.data.access_token;
+        setAccessToken(access_token);
+        const userGuilds = await getUserGuilds(access_token);
+        console.log("userGuilds : ",userGuilds);
+        setGuilds(userGuilds);
+      } catch (error) {
+        console.log("Error during Discord authentication:", error);
       }
     }
+  };
+
+  useEffect(() => {
     fetchData();
-    
-  },[])
+  }, []);
   
 
   return (
@@ -84,6 +80,9 @@ const LoginModel = () => {
       </div>
 
     </div>
+    {
+      guilds.length > 0 && <PostToDiscord accessToken={accessToken} guilds={guilds}/>
+    }
   </div>
   );
 };
